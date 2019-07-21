@@ -22,14 +22,31 @@ este sketch está hecho para reconocer 1 persona,
  - Mirror en relación a lo anterior
  
  = Krista Y:. (14/04/2019)
+ 
+ ______
+ 
+- Para capturar usuaries se usa ahora IntVector, una clase de SimpleOpenNi
+creada exclusivamente para esto.
+- La kinect al darla vuelta, no lee correctamente el esqueleto. Así que optamos por dejarla
+en la posici´ón convencional.
+- Se lee solo los valores dele primer usuarie.
+- Se cambiaron el nombre de algunas variables y se agregaron,modificaron y eliminaron algunos comentarios.
+
+
+-Aún no se puede crear un ejecutable funcional para mac,
+se puede para windows unicamente, pero crackeando la versión de simpleOpenNi
+
+No deberían existir mayores problemas ahora.
+
+ = Krista Y:. (08/05/2019)
  */
 
 import SimpleOpenNI.*; 
 SimpleOpenNI kinect;
-//Esto se usara para asignarle un color a cada usuario que reconozca
+//Esto se usara para asignarle un color a cada usuarie que reconozca
 color[]       userFarbe = new color[] { 
-  color(255, 0, 0), 
   color(0, 255, 0), 
+  color(255, 0, 0), 
   color(0, 0, 255), 
   color(255, 255, 0), 
   color(255, 0, 255), 
@@ -72,7 +89,7 @@ void setup()
     exit();
     return;
   }
-   kinect.setMirror(true);//toca ponerlo antes de habilitar al usuario.
+  kinect.setMirror(true);//toca ponerlo antes de habilitar al usuario.
 
 
   kinect.enableDepth();
@@ -87,39 +104,40 @@ void setup()
 //------------------------------------------ D R A W <
 void draw ()
 {
-  pushMatrix();
 
   kinect.update();
   image(kinect.depthImage(), 0, 0);
-  //image(kinect.userImage(), 0, 0);
-  popMatrix();
+  image(kinect.userImage(), 0, 0);
 
-
-  int [] userList = kinect.getUsers();
-
-  for (int i=0; i<userList.length; i++)
-  {
-    if (kinect.isTrackingSkeleton(userList[i]))
+  // guarda las posciones de usuaries
+  IntVector userList = new IntVector();
+  kinect.getUsers(userList);
+  if (userList.size() > 0) {
+    //----Aquí capturo solo los dele primer usuarie userList.get(0);
+    int userId = userList.get(0);
+    //---Trackea userId que tiene el valor de 0, es decir dele primere usuarie
+    if (kinect.isTrackingSkeleton(userId))
     {
       println("oh yes!!- Skeleton Ready");
 
-      updateVectores(1);
+      updateVectores(userId);
       //Anuncia presencia solo sí se reconoce esqueleto
       presencia=1;
 
       enviaValores();
 
-      stroke(userFarbe[userList[i]-1 % userFarbe.length]);
-      drawSkeleton(1);
+      stroke(userFarbe[userId]);
+      drawSkeleton(userId);
     } else {
       println("AwWww - Skeleton Away");
       //si no hay esqueleto, envia un cero
       presencia=0;
       enviaOSC("/kinect/presencia", presencia);
     }
+    //  println(kinect.getUsers(userList)+"-___ trackeando"+kinect.isTrackingSkeleton(userId));
+    println(userList.get(0)+"-___ trackeando___"+kinect.isTrackingSkeleton(userId));
   }
 
-  println(kinect.getUsers());
   println("______------________"+presencia);
 }
 
@@ -129,7 +147,6 @@ void draw ()
 void drawSkeleton(int userID)
 {
   pushStyle();
-  stroke(255, 0, 0);
   strokeWeight(5);
 
   kinect.drawLimb(userID, SimpleOpenNI.SKEL_HEAD, SimpleOpenNI.SKEL_NECK);
@@ -146,20 +163,20 @@ void drawSkeleton(int userID)
   popStyle();
 }
 
-public void onNewUser(SimpleOpenNI curKinect, int userID)
+public void onNewUser(SimpleOpenNI kinect, int userID)
 {
   println("Damn!, Hay alguien - ID Asignada:"+userID);
-  if (kinect.isTrackingSkeleton(1)) return;
+  if (kinect.isTrackingSkeleton(userID)) return;
   println("Detectando pose");
   kinect.startTrackingSkeleton(userID);
 }
 
-public void lostUser(SimpleOpenNI curKinect, int userID)
+public void lostUser(SimpleOpenNI kinect, int userID)
 {
   println  ("Se fue!! - su ID:"+userID);
 }
 
-void onVisibleUser(SimpleOpenNI curKkinect, int userID)
+void onVisibleUser(SimpleOpenNI kinect, int userID)
 {
 
   rect(width/2, height/2, 100, 100);
@@ -209,7 +226,6 @@ PVector posicionVectorial3D(PVector parteCuerpo, boolean convertir )
     parteCuerpoMapeada=parteCuerpo;
   }
 
-  //PVector parteCuerpoMapeada= new PVector(mappyX, mappyY, mappyZ);
   return parteCuerpoMapeada;
 }
 
@@ -232,29 +248,24 @@ void enviaValores()
 }
 
 
-void enviaOSC(String direccion, int valor)
+void enviaOSC(String direccion_, int valor_)
 {
 
-  /* in the following different ways of creating osc messages are shown by example */
-  OscMessage myMessage = new OscMessage(direccion);
-  myMessage.add(valor); /* add an int to the osc message */
-  /* send the message */
-  oscP5.send(myMessage, myRemoteLocation_1);
+  OscMessage mensaje = new OscMessage(direccion_);
+  mensaje.add(valor_); 
+  oscP5.send(mensaje, myRemoteLocation_1);
 }
 
-void enviaArrayOSC(String direccion, PVector vector_)
+void enviaArrayOSC(String direccion_, PVector vector_)
 {
   float [] valor={vector_.x, vector_.y, vector_.z};
 
-  /* in the following different ways of creating osc messages are shown by example */
-  OscMessage myMessage = new OscMessage(direccion);
-  myMessage.add(valor); /* add an int to the osc message */
-  /* send the message */
-  oscP5.send(myMessage, myRemoteLocation_1);
+  OscMessage mensaje = new OscMessage(direccion_);
+  mensaje.add(valor);
+  oscP5.send(mensaje, myRemoteLocation_1);
 }
 
-
-/* incoming osc message are forwarded to the oscEvent method. */
+//--Esto es solo para los eventos entrantes si es que los hay
 void oscEvent(OscMessage theOscMessage) {
   /* print the address pattern and the typetag of the received OscMessage */
   print("### received an osc message.");
@@ -267,11 +278,7 @@ void oscEvent(OscMessage theOscMessage) {
 void mousePressed()
 {
 
-  /* in the following different ways of creating osc messages are shown by example */
-  OscMessage myMessage = new OscMessage("/1");
-
-  myMessage.add(100); /* add an int to the osc message */
-
-  /* send the message */
-  oscP5.send(myMessage, myRemoteLocation_1);
+  OscMessage mensajePing = new OscMessage("/1");
+  mensajePing.add(100);
+  oscP5.send(mensajePing, myRemoteLocation_1);
 }
